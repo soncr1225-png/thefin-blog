@@ -8,7 +8,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES = ("2024-68165", "2025-51955", "2026-3414")
+
+
+def discover_cases() -> list[str]:
+    """게시 사건은 손으로 적지 않는다 — `_meta.txt`가 있는 폴더가 곧 게시물이다.
+
+    ★2026-08-16: 여기 사건번호 3개가 손으로 박혀 있었다. 새 게시물이 검사 대상 밖으로
+      조용히 빠지는 구조였다(볼트 관통 원리 1 — 손 목록은 매번 실제의 일부였다).
+    """
+    return sorted(p.parent.name for p in ROOT.glob("*/_meta.txt") if p.is_file())
+
+
 FORBIDDEN_PUBLIC = (
     "자료에 보증금 액수가 적혀",
     "자료에 표기되지",
@@ -52,29 +62,35 @@ def check_case(case: str) -> list[str]:
             continue
         if not (folder / src).is_file():
             errors.append(f"{case}: 깨진 이미지 경로 — {src}")
-    cards = sorted((folder / "img").glob("카드*.png"))
-    if len(cards) != 3:
-        errors.append(f"{case}: 근거 있는 카드 3장이어야 함, 실제 {len(cards)}장")
-    if case != "2024-68165":
-        for forbidden_asset in ("썸네일.png", "photo01.jpg", "배치도.png", "구조도.png", "위치도.png", "푸터.jpg"):
-            if (folder / "img" / forbidden_asset).exists():
-                errors.append(f"{case}: A-33 뒤 우회 생성된 자산 — {forbidden_asset}")
+    # ★2026-08-16 제거된 두 규칙 — 둘 다 정상 산출을 오류로 판정하고 있었다.
+    #   (1) "카드는 정확히 3장" — 카드는 근거가 있을 때만 만든다. 배당·취득세 근거가 있는
+    #       사건은 5장이 맞고, 개수를 고정하면 근거 있는 카드를 못 싣는다.
+    #   (2) "썸네일·도면·사진·푸터가 있으면 A-33 우회" — A-33(신규 킷 CLI 사망)이 수리되어
+    #       정본 경로로 자산이 나온다. 그 규칙은 이제 **제대로 만든 것을 차단**한다.
+    #   개수·종류를 여기서 세지 않는다. 자산 계약 정본은 auction-report 의
+    #   `blog_publish_contract` 이고, 같은 규칙을 두 곳에 구현하지 않는다.
+    #   이 검사기가 지키는 것은 **게시 페이지의 형식과 참조 무결성**뿐이다.
     return errors
 
 
 def main() -> int:
+    cases = discover_cases()
+    if not cases:
+        # 표본 0건은 통과가 아니다 — 검사기가 아무것도 안 본 것이다.
+        print("게시물을 하나도 발견하지 못했습니다 — 검사 대상 0건은 통과로 세지 않습니다")
+        return 1
     errors: list[str] = []
-    for case in CASES:
+    for case in cases:
         errors.extend(check_case(case))
     root_html = (ROOT / "index.html").read_text(encoding="utf-8")
-    for case in CASES:
+    for case in cases:
         if f'href="{case}/"' not in root_html:
             errors.append(f"목록 링크 없음 — {case}")
     if errors:
         print("\n".join(errors))
         return 1
-    image_count = sum(len(re.findall(r'<img\s', (ROOT / case / "index.html").read_text(encoding="utf-8"))) for case in CASES)
-    print(f"page contract OK: 3건, 게시 이미지 참조 {image_count}개, 깨진 경로 0개")
+    image_count = sum(len(re.findall(r'<img\s', (ROOT / case / "index.html").read_text(encoding="utf-8"))) for case in cases)
+    print(f"page contract OK: {len(cases)}건, 게시 이미지 참조 {image_count}개, 깨진 경로 0개")
     return 0
 
 
