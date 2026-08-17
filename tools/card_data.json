@@ -181,7 +181,8 @@
         "최저가_원": 1792000000,
         "전용면적_m2": 115.0,
         "조정대상지역": true,
-        "source_ref": "게시 현황표 + bid_calc/policy"
+        "source_ref": "게시 현황표 + 옥션원 예상배당(ca_analy 2026-08-17 수집) + bid_calc/policy",
+        "baedang": "_out/baedang_0817/2025-51955.json"
       }
     },
     "2026-3414": {
@@ -280,7 +281,8 @@
         "최저가_원": 695200000,
         "전용면적_m2": 102.6,
         "조정대상지역": true,
-        "source_ref": "게시 현황표 + bid_calc/policy"
+        "source_ref": "게시 현황표 + 옥션원 예상배당(ca_analy 2026-08-17 수집) + bid_calc/policy",
+        "baedang": "_out/baedang_0817/2026-3414.json"
       }
     }
   }

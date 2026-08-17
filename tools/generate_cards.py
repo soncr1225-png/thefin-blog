@@ -174,8 +174,19 @@ def _derive(case_key: str, case: dict[str, Any]) -> tuple[dict, dict]:
     #: 최저가는 회차마다 바뀐다 — seed가 아니라 **게시 표에서 확인한 현재 회차 값**이 정본이다
     #  (2026-08-17 실측: 3414 seed 8.69억 vs 현재 회차 6.952억).
     ref = inp.get("source_ref") or seed_path or case_key
-    if seed:
-        return blog_cards.from_seed(seed, 최저가_원=inp.get("최저가_원"), source_ref=ref)
+
+    #: 백필 스냅샷 — seed에 아직 안 들어간 사건의 예상배당(옥션원 ca_analy 원자료).
+    #  경로는 데이터에 적고, 읽는 방법은 여기 한 곳에만 둔다.
+    bd = None
+    bd_path = inp.get("baedang")
+    if bd_path:
+        bp = _THEME_SRC.parent / bd_path
+        if bp.is_file():
+            bd = json.loads(bp.read_text(encoding="utf-8")).get("예상배당")
+
+    if seed or bd:
+        return blog_cards.from_seed(seed, 최저가_원=inp.get("최저가_원"),
+                                    source_ref=ref, 예상배당=bd)
 
     out, why = {}, {}
     try:
@@ -183,7 +194,7 @@ def _derive(case_key: str, case: dict[str, Any]) -> tuple[dict, dict]:
             inp.get("최저가_원"), inp.get("전용면적_m2"), inp.get("조정대상지역"), ref)
     except Exception as e:                                      # noqa: BLE001
         why["acquisition_tax"] = str(e)
-    why["distribution"] = "예상배당표 미수집 — seed가 없다(0=fetch실패)"
+    why["distribution"] = "예상배당표 미수집 — seed도 백필도 없다(0=fetch실패)"
     return out, why
 
 
