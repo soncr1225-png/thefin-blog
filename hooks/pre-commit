@@ -46,4 +46,16 @@ if [ -f "$_pop" ]; then
   }
 fi
 
+# 빌드 산출물 차단(2026-08-18). 별도 스캐너를 만들지 않는다 — 스테이징만 본다.
+#   이 저장소엔 .gitignore 조차 없어 .pyc 가 추적되고 있었다(루트에서 같은 병을 고친 직후 발견).
+#   ★`--diff-filter=d` — 삭제는 제외한다. 안 그러면 **.pyc 를 걷어내는 커밋 자체가 막힌다**
+#     (0818 배선 직후 실제로 그 오탐이 났다. 게이트가 자기 수리를 막으면 아무도 못 고친다).
+_arts=$(git diff --cached --name-only --diff-filter=d | grep -E '(^|/)__pycache__/|\.py[cod]$' || true)
+if [ -n "$_arts" ]; then
+  echo "[X] 빌드 산출물이 스테이징됐다 -- 커밋 차단"
+  echo "$_arts"
+  echo "    조치: git rm --cached <경로> (디스크 파일은 지우지 말 것)"
+  exit 1
+fi
+
 echo "[OK] pre-commit 통과"
