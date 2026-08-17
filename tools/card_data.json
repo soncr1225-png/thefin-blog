@@ -84,71 +84,17 @@
           "source_refs": [
             "대본_최종_0816.md"
           ]
-        },
-        "distribution": {
-          "title": "배당과 명도",
-          "rows": [
-            {
-              "label": "매각대금 (최저가 가정)",
-              "value": "8억 4,700만 원",
-              "source_ref": "_poc/seed_2024-68165.json 예상배당(옥션원 ca_analy)"
-            },
-            {
-              "label": "경매비용",
-              "value": "715만 원",
-              "source_ref": "_poc/seed_2024-68165.json 예상배당(옥션원 ca_analy)"
-            },
-            {
-              "label": "1순위 근저당 배당",
-              "value": "5억 9,640만 원",
-              "source_ref": "_poc/seed_2024-68165.json 예상배당(옥션원 ca_analy)"
-            },
-            {
-              "label": "2순위 근저당 배당",
-              "value": "2억 4,345만 원",
-              "source_ref": "_poc/seed_2024-68165.json 예상배당(옥션원 ca_analy)"
-            },
-            {
-              "label": "매수인 인수금액",
-              "value": "0원",
-              "source_ref": "_poc/seed_2024-68165.json 예상배당(옥션원 ca_analy)",
-              "highlight": true
-            }
-          ],
-          "note": "최저가 낙찰 가정 · 실제 배당은 법원이 정합니다",
-          "source_refs": [
-            "_poc/seed_2024-68165.json 예상배당(옥션원 ca_analy)"
-          ]
-        },
-        "acquisition_tax": {
-          "title": "취득세 (최저가 기준)",
-          "rows": [
-            {
-              "label": "1주택",
-              "value": "2.91% · 2,466만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)"
-            },
-            {
-              "label": "2주택",
-              "value": "8.40% · 7,115만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)",
-              "highlight": true
-            },
-            {
-              "label": "3주택 이상",
-              "value": "12.40% · 1억 503만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)",
-              "highlight": true
-            }
-          ],
-          "note": "화성시 동탄 조정대상지역 · 전용 84.27㎡라 농특세 면제",
-          "source_refs": [
-            "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)"
-          ]
         }
       },
       "omitted": {},
-      "persona": "auction_practitioner"
+      "persona": "auction_practitioner",
+      "inputs": {
+        "seed": "_poc/seed_2024-68165.json",
+        "최저가_원": 847000000,
+        "전용면적_m2": 84.2656,
+        "조정대상지역": true,
+        "source_ref": "게시 현황표 + seed 예상배당(옥션원 ca_analy) + bid_calc/policy"
+      }
     },
     "2025-51955": {
       "cards": {
@@ -227,38 +173,16 @@
           "source_refs": [
             "대본_최종_0816.md"
           ]
-        },
-        "acquisition_tax": {
-          "title": "취득세 (최저가 기준)",
-          "rows": [
-            {
-              "label": "1주택",
-              "value": "3.50% · 6,272만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)"
-            },
-            {
-              "label": "2주택",
-              "value": "9.00% · 1억 6,128만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)",
-              "highlight": true
-            },
-            {
-              "label": "3주택 이상",
-              "value": "13.40% · 2억 4,013만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)",
-              "highlight": true
-            }
-          ],
-          "note": "용산구는 조정대상지역 · 전용 115㎡ 초과로 농특세 포함",
-          "source_refs": [
-            "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)"
-          ]
         }
       },
-      "omitted": {
-        "distribution": "예상배당표 미수집 — 옥션원 ca_analy 캐시 부재(2026-08-17 확인). 계산 금지가 아니라 원자료를 아직 못 받았다. 수집되면 68165와 같은 형식으로 생성한다."
-      },
-      "persona": "veteran_realtor"
+      "omitted": {},
+      "persona": "veteran_realtor",
+      "inputs": {
+        "최저가_원": 1792000000,
+        "전용면적_m2": 115.0,
+        "조정대상지역": true,
+        "source_ref": "게시 현황표 + bid_calc/policy"
+      }
     },
     "2026-3414": {
       "cards": {
@@ -347,38 +271,17 @@
           "source_refs": [
             "대본_최종_0816.md"
           ]
-        },
-        "acquisition_tax": {
-          "title": "취득세 (최저가 기준)",
-          "rows": [
-            {
-              "label": "1주택",
-              "value": "2.00% · 1,390만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)"
-            },
-            {
-              "label": "2주택",
-              "value": "9.00% · 6,257만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)",
-              "highlight": true
-            },
-            {
-              "label": "3주택 이상",
-              "value": "13.40% · 9,316만 원",
-              "source_ref": "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)",
-              "highlight": true
-            }
-          ],
-          "note": "구로구는 조정대상지역 · 전용 102.6㎡ 초과로 농특세 포함",
-          "source_refs": [
-            "bid_calc.total_acq_rate(xlsm B73) + policy.py regulated_areas(2026-08-15 검증)"
-          ]
         }
       },
-      "omitted": {
-        "distribution": "예상배당표 미수집 — 옥션원 ca_analy 캐시 부재(2026-08-17 확인). 계산 금지가 아니라 원자료를 아직 못 받았다. 수집되면 68165와 같은 형식으로 생성한다."
-      },
-      "persona": "data_analyst"
+      "omitted": {},
+      "persona": "data_analyst",
+      "inputs": {
+        "seed": "_poc/seed_2026-3414.json",
+        "최저가_원": 695200000,
+        "전용면적_m2": 102.6,
+        "조정대상지역": true,
+        "source_ref": "게시 현황표 + bid_calc/policy"
+      }
     }
   }
 }

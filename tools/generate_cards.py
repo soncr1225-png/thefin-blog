@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -123,8 +124,16 @@ def validate(data: dict[str, Any]) -> list[str]:
         return ["cases가 비어 있습니다"]
     for case_key, case in cases.items():
         cards, omitted = case.get("cards", {}), case.get("omitted", {})
-        if set(cards) | set(omitted) != set(CARD_FILES) or set(cards) & set(omitted):
-            errors.append(f"{case_key}: 5종 카드가 cards/omitted에 정확히 한 번씩 있어야 합니다")
+        #: 도출 카드는 데이터에 적지 않는다 — 적혀 있으면 그것부터 오류다(손 타이핑 재유입 차단).
+        hand = [k for k in DERIVED_KINDS if k in cards]
+        if hand:
+            errors.append(f"{case_key}: {hand}는 도출 대상이라 손으로 적을 수 없습니다 "
+                          f"(inputs에 최저가·전용면적·조정만 적으세요)")
+        covered = set(cards) | set(omitted) | set(DERIVED_KINDS)
+        if covered != set(CARD_FILES) or (set(cards) & set(omitted)):
+            errors.append(f"{case_key}: 5종 카드가 cards/omitted/도출에 정확히 한 번씩 있어야 합니다")
+        if not (case.get("inputs") or {}).get("최저가_원"):
+            errors.append(f"{case_key}: inputs.최저가_원 없음 — 취득세를 도출할 수 없습니다")
         for kind, card in cards.items():
             if kind not in CARD_FILES:
                 errors.append(f"{case_key}: 알 수 없는 카드 {kind}")
@@ -140,6 +149,44 @@ def validate(data: dict[str, Any]) -> list[str]:
     return errors
 
 
+#: 돈이 걸린 두 카드는 **도출한다**. 여기 문자열로 적어 넣지 않는다.
+#  ★2026-08-17 대표 지적: "고쳐서 매번 발행할거면 내가 왜 이런 프로그램 엔진을 요청하냐."
+#    그날 나는 취득세를 계산해서 `"2.91% · 2,466만 원"` 처럼 card_data.json에 타이핑했다.
+#    그러면 7번째 사건은 또 손으로 해야 하고, 그건 엔진이 아니다.
+#    이제 사람이 적는 것은 **입력**(최저가·전용면적·조정)뿐이고 계산은 bid_calc가 한다.
+DERIVED_KINDS = ("acquisition_tax", "distribution")
+
+
+def _derive(case_key: str, case: dict[str, Any]) -> tuple[dict, dict]:
+    """(도출된 카드, 못 만든 사유) — seed가 있으면 seed에서, 없으면 inputs에서."""
+    import sys as _sys
+    if str(_THEME_SRC) not in _sys.path:
+        _sys.path.insert(0, str(_THEME_SRC))
+    from utils import blog_cards                                # noqa: PLC0415
+
+    inp = case.get("inputs") or {}
+    seed_path = inp.get("seed")
+    seed: dict[str, Any] = {}
+    if seed_path:
+        sp = _THEME_SRC.parent / seed_path
+        if sp.is_file():
+            seed = json.loads(sp.read_text(encoding="utf-8"))
+    #: 최저가는 회차마다 바뀐다 — seed가 아니라 **게시 표에서 확인한 현재 회차 값**이 정본이다
+    #  (2026-08-17 실측: 3414 seed 8.69억 vs 현재 회차 6.952억).
+    ref = inp.get("source_ref") or seed_path or case_key
+    if seed:
+        return blog_cards.from_seed(seed, 최저가_원=inp.get("최저가_원"), source_ref=ref)
+
+    out, why = {}, {}
+    try:
+        out["acquisition_tax"] = blog_cards.derive_tax(
+            inp.get("최저가_원"), inp.get("전용면적_m2"), inp.get("조정대상지역"), ref)
+    except Exception as e:                                      # noqa: BLE001
+        why["acquisition_tax"] = str(e)
+    why["distribution"] = "예상배당표 미수집 — seed가 없다(0=fetch실패)"
+    return out, why
+
+
 def generate(data_path: Path, selected_case: str | None = None) -> int:
     data = json.loads(data_path.read_text(encoding="utf-8"))
     errors = validate(data)
@@ -150,13 +197,30 @@ def generate(data_path: Path, selected_case: str | None = None) -> int:
         if selected_case and case_key != selected_case:
             continue
         persona = case.get("persona")
-        for kind, card in case["cards"].items():
+        derived, why = _derive(case_key, case)
+        cards = dict(case["cards"])
+        for kind in DERIVED_KINDS:
+            if kind in derived:
+                cards[kind] = derived[kind]                     # 손 타이핑을 덮어쓴다
+            elif kind in cards:
+                raise ValueError(
+                    "%s/%s: 카드가 데이터에 있는데 도출이 안 된다(%s). "
+                    "돈이 걸린 값은 손으로 적지 않는다." % (case_key, kind, why.get(kind, "")))
+        for kind, card in cards.items():
             render_card(card, ROOT / case_key / "img" / CARD_FILES[kind], persona)
             made += 1
     return made
 
 
 def main() -> int:
+    #: ★한글 콘솔(cp949)에서 — 게이트가 위반을 잡고도 출력 단계에서 죽으면 **사유가 안 보인다**.
+    #  2026-08-17 실측: "최저가 없음"을 정확히 잡았는데 화면엔 UnicodeEncodeError만 떴다.
+    #  검사기가 자기 결과를 못 보여주면 게이트가 아니다(check_pages.py와 같은 수리).
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:                                           # noqa: BLE001
+        pass
     parser = argparse.ArgumentParser(description="THE FIN 블로그 카드 5종 결정론 생성기")
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--case", choices=["2024-68165", "2025-51955", "2026-3414"])
