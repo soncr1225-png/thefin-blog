@@ -74,6 +74,50 @@ def check_case(case: str) -> list[str]:
     return errors
 
 
+#: 네이버 저품질(어뷰징) 판정 — **여기서 새로 만들지 않는다.**
+#  정본 엔진 = `thr-fin-intranet/blog-rules/naver_blog_safety.js`(ADR-20260613에서 결정).
+#  발행 화면·대본 추출·이 검사기가 **같은 파일**을 부른다. 규칙을 복제하면 세 곳이 서로 다른
+#  판정을 내고, 그때 아무도 어느 게 맞는지 모른다(볼트 `02_결정/산출기_단일화_원칙.md`).
+SAFETY_JS = ROOT.parent / "thr-fin-intranet" / "blog-rules" / "naver_blog_safety.js"
+ABUSE_FAIL_GRADES = ("위험",)      # '주의'는 경고로 띄우고 막지는 않는다(막으면 게이트를 끄게 된다)
+
+
+def check_naver_abuse(cases: list[str]) -> list[str]:
+    """게시본을 어뷰징 검사기에 통과시킨다. node·엔진이 없으면 **통과가 아니라 오류**다."""
+    import json
+    import shutil
+    import subprocess
+
+    if not SAFETY_JS.is_file():
+        return [f"어뷰징 검사기 없음 — {SAFETY_JS} (게이트가 조용히 꺼지지 않게 오류로 낸다)"]
+    if not shutil.which("node"):
+        return ["node 없음 — 어뷰징 검사를 돌리지 못했다(미실행은 통과가 아니다)"]
+
+    script = (
+        "const S=require(process.argv[1]),X=require(process.argv[2]),fs=require('fs');"
+        "const out={};for(const c of process.argv.slice(4)){"
+        "const h=fs.readFileSync(process.argv[3]+'/'+c+'/index.html','utf8');"
+        "const r=S.analyzeDraft(X.publicText(h),X.meta(h));"
+        "out[c]={score:r.score,grade:r.grade,issues:(r.issues||[]).map(i=>i.code+':'+i.severity)};}"
+        "console.log(JSON.stringify(out));"
+    )
+    proc = subprocess.run(
+        ["node", "-e", script, str(SAFETY_JS), str(ROOT / "tools" / "_extract.js"), str(ROOT), *cases],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if proc.returncode != 0:
+        return ["어뷰징 검사 실행 실패 — " + (proc.stderr or "").strip()[:300]]
+
+    errors: list[str] = []
+    for case, r in json.loads(proc.stdout).items():
+        mark = "!" if r["grade"] in ABUSE_FAIL_GRADES else " "
+        print(f"  {mark} 어뷰징 {case}: {r['score']}점 {r['grade']}"
+              + (f" — {', '.join(r['issues'])}" if r["issues"] else ""))
+        if r["grade"] in ABUSE_FAIL_GRADES:
+            errors.append(f"어뷰징 위험 등급 — {case} ({r['score']}점): {', '.join(r['issues'])}")
+    return errors
+
+
 def main() -> int:
     # ★한글 콘솔(cp949)에서 — 같은 문자를 출력하다 죽으면 **오류를 못 읽는다**.
     #   2026-08-17: 신규 검사가 실제로 위반을 잡았는데 출력 단계에서 UnicodeEncodeError로
@@ -113,6 +157,8 @@ def main() -> int:
         for m in re.finditer(r'src="([^"]+\.(?:png|jpg|jpeg))"', page):
             if not (ROOT / case / m.group(1)).exists():
                 errors.append(f"본문 이미지 없음 — {case}/{m.group(1)}")
+    errors.extend(check_naver_abuse(cases))
+
     if errors:
         print("\n".join(errors))
         return 1
