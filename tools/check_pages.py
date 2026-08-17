@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 
@@ -74,6 +75,13 @@ def check_case(case: str) -> list[str]:
 
 
 def main() -> int:
+    # ★한글 콘솔(cp949)에서 — 같은 문자를 출력하다 죽으면 **오류를 못 읽는다**.
+    #   2026-08-17: 신규 검사가 실제로 위반을 잡았는데 출력 단계에서 UnicodeEncodeError로
+    #   죽어 "무엇이 틀렸는지"가 안 보였다. 검사기가 자기 결과를 못 보여주면 게이트가 아니다.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        pass
     cases = discover_cases()
     if not cases:
         # 표본 0건은 통과가 아니다 — 검사기가 아무것도 안 본 것이다.
@@ -86,6 +94,25 @@ def main() -> int:
     for case in cases:
         if f'href="{case}/"' not in root_html:
             errors.append(f"목록 링크 없음 — {case}")
+
+    # ★목록 표지는 썸네일이어야 한다(대표 지적 2026-08-17).
+    #   글 안에는 썸네일을 넣고 목록은 안 고쳐, 표지에 카드1(사건요약)이 뜨는 사고가 났다.
+    #   "한쪽만 고치고 고쳤다고 하는" 형태라 검사기로 박는다.
+    for case in cases:
+        thumb = ROOT / case / "img" / "썸네일.png"
+        ref = f'{case}/img/썸네일.png'
+        if thumb.exists() and ref not in root_html:
+            errors.append(f"목록 표지가 썸네일이 아니다 — {case} (img/썸네일.png 가 있는데 목록이 안 쓴다)")
+
+    # ★목록·본문이 가리키는 이미지가 실제로 있어야 한다.
+    for m in re.finditer(r'src="([^"]+\.(?:png|jpg|jpeg))"', root_html):
+        if not (ROOT / m.group(1)).exists():
+            errors.append(f"목록 이미지 없음 — {m.group(1)}")
+    for case in cases:
+        page = (ROOT / case / "index.html").read_text(encoding="utf-8")
+        for m in re.finditer(r'src="([^"]+\.(?:png|jpg|jpeg))"', page):
+            if not (ROOT / case / m.group(1)).exists():
+                errors.append(f"본문 이미지 없음 — {case}/{m.group(1)}")
     if errors:
         print("\n".join(errors))
         return 1
