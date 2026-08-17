@@ -1,0 +1,31 @@
+#!/bin/sh
+# THE FIN 블로그 pre-commit — 공개 발행물 게이트 (2026-08-18 신설)
+#
+# ★신설 사유: 이 저장소에는 훅이 **하나도 없었다**. 그래서 `tools/check_pages.py` 가 있어도
+#   사람이 기억해서 돌려야 했고, 2026-08-18에 내부 검토용 블록(개발 로그·사내 표기)이
+#   GitHub Pages 공개 URL 로 6편 전부 나갔다. 대표가 라이브에서 발견했다.
+#   검사기가 있는 것과 검사기가 집행되는 것은 다르다.
+#
+# ☞ 배선(이 저장소에서 한 번만):  git config core.hooksPath hooks
+#   ★이 명령 전까지 이 파일은 아무것도 집행하지 않는다(Git 은 .git/hooks 또는 core.hooksPath 만 본다).
+#   해제: git config --unset core.hooksPath
+#
+# 🔴한계 — 로컬 훅은 GitHub UI 편집·다른 클론·`--no-verify` 를 못 막는다.
+#   공개 표면을 실제로 닫으려면 같은 검사를 CI 필수 체크로도 돌려야 한다(미정리 등록됨).
+
+set -e
+echo "-- pre-commit: 블로그 공개물 게이트 --"
+
+_gate="tools/check_pages.py"
+if [ -f "$_gate" ]; then
+  _out=$(python "$_gate" 2>&1) || {
+    echo "[X] 공개물 게이트 실패 -- 커밋 차단"
+    echo "    재현: python $_gate"
+    printf '%s\n' "$_out" | grep -v '어뷰징' | tail -20
+    exit 1
+  }
+  # 어뷰징 점수는 차단 사유가 아니라 참고값이다 — 사람이 보게 남긴다.
+  printf '%s\n' "$_out" | grep '어뷰징' || true
+fi
+
+echo "[OK] pre-commit 통과"
