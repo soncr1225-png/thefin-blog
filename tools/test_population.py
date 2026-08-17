@@ -37,8 +37,36 @@ def _tree(root: Path, rels: list[str], meta: list[str], links: list[str]) -> Non
     (root / "index.html").write_text("<html>%s</html>" % body, encoding="utf-8")
 
 
+def _writable_base() -> str:
+    """쓸 수 있는 임시 부모를 **찾아서** 쓴다.
+
+    🔴2026-08-18 코덱스 반대검증 지적: 초판은 기본 `tempfile` 만 써서 `%TEMP%` ACL 이 막힌
+      환경에서 `PermissionError` 로 **exit 1** 이었다. 내 PC 에서만 초록이던 것이다.
+      환경 잡음으로 죽는 게이트는 거짓 빨강이 되고, 거짓 빨강은 사람이 게이트를 끄게 만든다
+      (이 저장소에서 2026-08-14 에 실제로 저장소 전체 커밋이 막힌 적이 있다).
+    ★리포 밖을 먼저 고른다 — 리포 안에 트리를 지으면 모집단 게이트가 그것을 위반으로 센다.
+    """
+    import os
+    here = Path(__file__).resolve().parent
+    cands = [os.environ.get("TMPDIR"), os.environ.get("TEMP"), os.environ.get("TMP"),
+             str(Path.home() / ".cache"), str(here / "_selfcheck")]
+    for c in cands:
+        if not c:
+            continue
+        try:
+            p = Path(c)
+            p.mkdir(parents=True, exist_ok=True)
+            probe = p / ".w"
+            probe.write_text("x", encoding="utf-8")
+            probe.unlink()
+            return str(p)
+        except Exception:  # noqa: BLE001
+            continue
+    raise SystemExit("쓸 수 있는 임시 폴더를 찾지 못했다 — 자체역검증을 조용히 건너뛰지 않는다")
+
+
 def _run(rels, meta, links, stray=()):
-    with tempfile.TemporaryDirectory() as td:
+    with tempfile.TemporaryDirectory(dir=_writable_base()) as td:
         root = Path(td)
         _tree(root, rels, meta, links)
         for s in stray:

@@ -16,6 +16,12 @@
 set -e
 echo "-- pre-commit: 블로그 공개물 게이트 --"
 
+# 🔴fail-closed — 게이트 파일이 사라지면 통과가 아니라 차단이다(2026-08-18 코덱스 지적).
+#   초판은 `[ -f ]` 로 건너뛰어, **게이트를 지우는 커밋 자체가 통과**했다.
+for _need in tools/check_pages.py tools/test_population.py tools/page_registry.json; do
+  [ -f "$_need" ] || { echo "[X] 게이트 파일이 없다 — $_need (지워졌다면 그 커밋부터 차단한다)"; exit 1; }
+done
+
 _gate="tools/check_pages.py"
 if [ -f "$_gate" ]; then
   _out=$(python "$_gate" 2>&1) || {

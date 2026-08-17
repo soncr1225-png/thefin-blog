@@ -57,14 +57,42 @@ def discover(root: Path = ROOT) -> dict[str, set[str]]:
 
 
 def load_registry(root: Path = ROOT) -> dict:
-    """공개하지 않을 HTML의 면제 등재부(경로 → 사유·날짜). 없으면 빈 등재부."""
+    """공개하지 않을 HTML의 면제 등재부(경로 → {사유, 날짜}).
+
+    🔴**fail-closed.** 파일이 없거나 못 읽으면 오류다 — 2026-08-18 코덱스 반대검증 지적:
+      초판은 파일이 없으면 `{}` 를 돌려줘, **등재부를 지우면 게이트가 조용히 헐거워졌다.**
+      면제 장치가 fail-open 이면 그것은 면제가 아니라 구멍이다.
+    """
     p = root / "tools" / "page_registry.json"
     if not p.is_file():
-        return {}
+        raise SystemExit(
+            f"등재부가 없다 — {p}\n"
+            "  면제 등재부는 비어 있어도 파일로 존재해야 한다(`{}`). 지우면 게이트가 헐거워진다."
+        )
     try:
-        return json.loads(p.read_text(encoding="utf-8"))
+        data = json.loads(p.read_text(encoding="utf-8"))
     except Exception as e:  # noqa: BLE001
         raise SystemExit(f"등재부를 읽을 수 없다 — {p}: {e} (게이트가 조용히 꺼지지 않게 오류로 낸다)")
+    if not isinstance(data, dict):
+        raise SystemExit(f"등재부 형식 오류 — {p}: 최상위는 객체여야 한다")
+    return data
+
+
+def registry_violations(registry: dict) -> list[str]:
+    """등재 항목이 **사유와 날짜를 갖췄는지**. 경로만 적고 빠져나가는 것을 막는다.
+
+    🔴2026-08-18 코덱스 지적: 초판은 키 존재만 봐서 `"draft/x.html": null` 도 면제됐다.
+      면제는 **왜·언제**가 남아야 나중에 회수할 수 있다.
+    """
+    out = []
+    for path, meta in sorted(registry.items()):
+        if not isinstance(meta, dict):
+            out.append(f"등재부 항목이 객체가 아니다 — {path} (사유·날짜를 적어라)")
+            continue
+        for key in ("reason", "date"):
+            if not str(meta.get(key) or "").strip():
+                out.append(f"등재부 항목에 {key} 가 없다 — {path}")
+    return out
 
 
 def check_population(pop: dict[str, set[str]], registry: dict) -> list[str]:
@@ -80,7 +108,23 @@ def check_population(pop: dict[str, set[str]], registry: dict) -> list[str]:
         errors.append(f"고아 발행 — {d} (공개되지만 목록에서 링크되지 않는다)")
     for f in sorted(pop["S"] - set(registry)):
         errors.append(f"등재부 밖 HTML — {f} (tools/page_registry.json 에 경로·사유·날짜를 등재하라)")
+    errors.extend(registry_violations(registry))
     return errors
+
+
+def check_root_page(root: Path = ROOT) -> list[str]:
+    """루트 목록 페이지도 **공개된다** — 내부 문구가 있으면 RED.
+
+    🔴2026-08-18 코덱스 반대검증이 잡은 구멍: 모집단 A 는 `root` 자신을 제외한다(사건 폴더만 셈).
+      그래서 루트 `index.html` 에 `내부 검토용`·`class="w devnote"` 를 넣어도 **exit 0** 이었다.
+      저장소에 `.nojekyll` 이 있어 루트 HTML 도 경로 그대로 공개되는데도 그랬다.
+      오늘 사건 페이지에서 실제로 터진 사고와 **같은 형태가 루트에 남아 있었다.**
+    """
+    p = root / "index.html"
+    if not p.is_file():
+        return ["루트 목록 페이지가 없다 — index.html"]
+    html = p.read_text(encoding="utf-8")
+    return [f"루트 목록 공개 금지 문구 — {phrase}" for phrase in FORBIDDEN_PUBLIC if phrase in html]
 
 
 def discover_cases(root: Path = ROOT) -> list[str]:
@@ -216,6 +260,7 @@ def main() -> int:
     #   2026-08-18에 공개 페이지 2개가 모집단 밖이라 모든 검사를 통째로 우회했다.
     pop = discover()
     errors: list[str] = check_population(pop, load_registry())
+    errors.extend(check_root_page())
     cases = sorted(pop["A"] & pop["C"])
     if not cases:
         # 표본 0건은 통과가 아니다 — 검사기가 아무것도 안 본 것이다.
