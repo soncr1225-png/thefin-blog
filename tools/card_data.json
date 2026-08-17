@@ -147,7 +147,8 @@
           ]
         }
       },
-      "omitted": {}
+      "omitted": {},
+      "persona": "auction_practitioner"
     },
     "2025-51955": {
       "cards": {
@@ -256,7 +257,8 @@
       },
       "omitted": {
         "distribution": "예상배당표 미수집 — 옥션원 ca_analy 캐시 부재(2026-08-17 확인). 계산 금지가 아니라 원자료를 아직 못 받았다. 수집되면 68165와 같은 형식으로 생성한다."
-      }
+      },
+      "persona": "veteran_realtor"
     },
     "2026-3414": {
       "cards": {
@@ -375,7 +377,8 @@
       },
       "omitted": {
         "distribution": "예상배당표 미수집 — 옥션원 ca_analy 캐시 부재(2026-08-17 확인). 계산 금지가 아니라 원자료를 아직 못 받았다. 수집되면 68165와 같은 형식으로 생성한다."
-      }
+      },
+      "persona": "data_analyst"
     }
   }
 }

@@ -31,6 +31,26 @@ FONT_BOLD = Path(r"C:\Users\s\OneDrive\바탕 화면\잡다\폰트\폰트\SEBANG
 FONT_REGULAR = Path(r"C:\Windows\Fonts\malgun.ttf")
 
 
+#: 카드 액센트 = **페르소나 스킨 정본에서 온다**. 여기에 색표를 새로 만들지 않는다.
+#  ★2026-08-17 대표 지적("디자인 통일"): 썸네일·푸터는 페르소나별로 갈리는데 카드만
+#    고정 금테라 한 글 안에서 톤이 어긋났다. 원인은 썸네일과 **똑같다** — 이 렌더러가
+#    페르소나를 아예 안 받았다(볼트 `02_결정/산출기_단일화_원칙.md` §8).
+_THEME_SRC = ROOT.parent / "thefin-auction-report" / "src"
+
+
+@lru_cache(maxsize=None)
+def _accent(persona: str | None) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+    """(테두리·구분선용 진한 액센트, 제목 그라데이션 밝은 끝) — 정본 blog_theme에서 도출."""
+    import sys as _sys
+    if str(_THEME_SRC) not in _sys.path:
+        _sys.path.insert(0, str(_THEME_SRC))
+    from utils import blog_theme                                   # noqa: PLC0415
+    hexv = blog_theme.theme(persona)["accent"].lstrip("#")
+    base = tuple(int(hexv[i:i + 2], 16) for i in (0, 2, 4))
+    light = tuple(min(255, round(c + (255 - c) * 0.55)) for c in base)
+    return base, light
+
+
 @lru_cache(maxsize=None)
 def _font(path: Path, size: int) -> ImageFont.FreeTypeFont:
     if not path.is_file():
@@ -46,12 +66,13 @@ def _fit_font(draw: ImageDraw.ImageDraw, text: str, path: Path, start: int, max_
     raise ValueError(f"카드 폭에 들어가지 않는 문자열: {text}")
 
 
-def _gold_text(image: Image.Image, xy: tuple[int, int], text: str, font: ImageFont.FreeTypeFont) -> None:
+def _accent_text(image: Image.Image, xy: tuple[int, int], text: str,
+                 font: ImageFont.FreeTypeFont, accent) -> None:
+    base, light = accent
     mask = Image.new("L", image.size, 0)
     ImageDraw.Draw(mask).text(xy, text, font=font, fill=255, anchor="mm")
     ramp = Image.linear_gradient("L").resize(image.size)
-    gradient = ImageOps.colorize(ramp, black=(246, 220, 151), white=(188, 151, 74))
-    image.paste(gradient, (0, 0), mask)
+    image.paste(ImageOps.colorize(ramp, black=light, white=base), (0, 0), mask)
 
 
 def _background(height: int) -> Image.Image:
@@ -59,19 +80,23 @@ def _background(height: int) -> Image.Image:
     return ImageOps.colorize(ramp, black=(31, 31, 29), white=(27, 28, 26))
 
 
-def render_card(card: dict[str, Any], destination: Path) -> None:
+def render_card(card: dict[str, Any], destination: Path, persona: str | None = None) -> None:
     rows = card["rows"]
     if not 2 <= len(rows) <= 5:
         raise ValueError(f"행 수는 2~5개여야 합니다: {destination}")
     height = max(460, 226 + len(rows) * 78)
     image = _background(height)
     draw = ImageDraw.Draw(image)
-    gold, line = (181, 142, 43), (58, 58, 55)
-    label_color, white, highlight = (188, 188, 188), (255, 255, 255), (246, 222, 157)
+    accent = _accent(persona)
+    base, light = accent
+    line = (58, 58, 55)
+    label_color, white, highlight = (188, 188, 188), (255, 255, 255), light
+    rule = tuple(round(c * 0.65) for c in base)
 
-    draw.rectangle((24, 24, WIDTH - 25, height - 25), outline=gold, width=2)
-    _gold_text(image, (WIDTH // 2, 76), card["title"], _fit_font(draw, card["title"], FONT_BOLD, 48, 680))
-    draw.line((86, 132, WIDTH - 86, 132), fill=(118, 91, 30), width=1)
+    draw.rectangle((24, 24, WIDTH - 25, height - 25), outline=base, width=2)
+    _accent_text(image, (WIDTH // 2, 76), card["title"],
+                 _fit_font(draw, card["title"], FONT_BOLD, 48, 680), accent)
+    draw.line((86, 132, WIDTH - 86, 132), fill=rule, width=1)
 
     y0 = 154
     for index, row in enumerate(rows):
@@ -124,8 +149,9 @@ def generate(data_path: Path, selected_case: str | None = None) -> int:
     for case_key, case in data["cases"].items():
         if selected_case and case_key != selected_case:
             continue
+        persona = case.get("persona")
         for kind, card in case["cards"].items():
-            render_card(card, ROOT / case_key / "img" / CARD_FILES[kind])
+            render_card(card, ROOT / case_key / "img" / CARD_FILES[kind], persona)
             made += 1
     return made
 
