@@ -28,6 +28,16 @@ FORBIDDEN_PUBLIC = (
     "삼겠습니다",
     "예상낙찰가",
     "입찰 상한선",
+    # 🔴2026-08-18 신설 — 내부 문서가 공개 URL 로 나간 사고(대표가 라이브에서 발견).
+    #   개발 로그·사내 표기가 독자에게 그대로 읽혔다. 이 신호가 공개물에 있으면 무조건 차단한다.
+    #   ★"내부용이라고 표시하는 것"과 "공개되지 않는 것"은 다르다 — 표시는 배포를 막지 못한다.
+    "내부 검토용",
+    "네이버에 옮기지 마세요",
+    "배관 사정",
+    'class="w devnote"',
+    "이이사님이 주신 초안",
+    "대표 확정 2026",
+    "대표 지적 2026",
 )
 
 
@@ -39,7 +49,12 @@ def check_case(case: str) -> list[str]:
         return [f"{case}: _meta.txt 또는 index.html 없음"]
     meta = meta_path.read_text(encoding="utf-8").splitlines()
     html = html_path.read_text(encoding="utf-8")
-    public = html.split('<hr class="cut">', 1)[0]
+    # 🔴2026-08-18 — 예전에는 `html.split('<hr class="cut">')[0]` 을 공개로 봤다. 그 전제가 사고를 냈다.
+    #   이 파일들은 GitHub Pages 로 **파일 전체가 공개**된다. 자르는 선은 매니저가 네이버에 복붙할 때
+    #   쓰라는 표시일 뿐 배포를 막지 않는다. 그래서 선 뒤에 있던 devnote(개발 로그·사내 표기)가
+    #   금지 문구 검사를 한 번도 안 받고 공개 URL 로 나갔다(대표가 라이브에서 발견).
+    #   ★검사 범위는 "우리가 공개라고 믿는 곳"이 아니라 **실제로 배포되는 것 전체**여야 한다.
+    public = html
     if len(meta) != 3 or not all(line.strip() for line in meta):
         errors.append(f"{case}: _meta.txt는 빈 줄 없는 3줄이어야 함")
     required = (
@@ -49,7 +64,9 @@ def check_case(case: str) -> list[str]:
         "border-left:3px solid #555",
         '<hr class="cut">',
         'class="tag"',
-        'class="w devnote"',
+        # 🔴`class="w devnote"` 를 필수에서 뺐다(2026-08-18).
+        #   내부 검토 블록은 공개 노출 사고로 6편 전부에서 제거됐다(b1d2dbd). 필수로 두면
+        #   **정상 상태가 영구 RED** 가 되고, 영구 빨강은 사람이 게이트를 꺼버리게 만든다.
     )
     for token in required:
         if token not in html:
