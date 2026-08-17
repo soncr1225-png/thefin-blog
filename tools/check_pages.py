@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -11,13 +12,81 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def discover_cases() -> list[str]:
-    """게시 사건은 손으로 적지 않는다 — `_meta.txt`가 있는 폴더가 곧 게시물이다.
+def discover(root: Path = ROOT) -> dict[str, set[str]]:
+    """공개 가능한 페이지 모집단을 **디스크 구조에서** 도출한다.
 
-    ★2026-08-16: 여기 사건번호 3개가 손으로 박혀 있었다. 새 게시물이 검사 대상 밖으로
-      조용히 빠지는 구조였다(볼트 관통 원리 1 — 손 목록은 매번 실제의 일부였다).
+    ★2026-08-16: 사건번호 3개가 손으로 박혀 있어 새 게시물이 검사 대상 밖으로 빠졌다.
+      그래서 `_meta.txt` 보유 폴더로 바꿨는데, 그것도 **관행 의존**이었다 —
+    ★2026-08-18 실측: `_meta.txt` 없는 `2026-9999/index.html` 과 중첩된
+      `archive/2026-9998/index.html` 을 심어도 검사기는 "6건"만 보고 **exit 0** 이었다.
+      공개는 파일이 발행되면 일어나는데 모집단은 메타 파일 관행을 따라간 것이다.
+      필드 하나가 아니라 **산출물 하나가 통째로 모든 검사를 우회**하는 축이라 여기부터 닫는다.
+
+    A = 재귀 전체의 index.html 보유 폴더(root 자신 제외 · .git 제외) = **실제 공개되는 것**
+    B = 루트 index.html 이 링크하는 폴더
+    C = `_meta.txt` 보유 폴더 = **계약을 갖춘 것**
+    S = index.html 이 아닌 모든 *.html (stray)
+
+    ★디스크 전수를 고른 이유(git 추적이 아니라): 리포 밖 스크래치에서도 픽스처가 돌아야 하고,
+      과잉 포함은 **안전한 방향으로** 틀린다(공개 아닌 것을 빨갛게 — 조용한 유출의 반대).
+    ★`root` 를 파라미터로 받는다 — 픽스처가 리포 안에 시험 HTML 을 만들면 그 자체가 오탐이 된다.
     """
-    return sorted(p.parent.name for p in ROOT.glob("*/_meta.txt") if p.is_file())
+    def _rel_dirs(pattern: str) -> set[str]:
+        out = set()
+        for p in root.rglob(pattern):
+            if ".git" in p.parts or not p.is_file():
+                continue
+            rel = p.parent.relative_to(root).as_posix()
+            if rel != ".":
+                out.add(rel)
+        return out
+
+    root_index = root / "index.html"
+    root_html = root_index.read_text(encoding="utf-8") if root_index.is_file() else ""
+    stray = set()
+    for p in root.rglob("*.html"):
+        if ".git" in p.parts or not p.is_file() or p.name == "index.html":
+            continue
+        stray.add(p.relative_to(root).as_posix())
+    return {
+        "A": _rel_dirs("index.html"),
+        "B": {m.group(1) for m in re.finditer(r'href="([^"?#:]+?)/"', root_html)},
+        "C": _rel_dirs("_meta.txt"),
+        "S": stray,
+    }
+
+
+def load_registry(root: Path = ROOT) -> dict:
+    """공개하지 않을 HTML의 면제 등재부(경로 → 사유·날짜). 없으면 빈 등재부."""
+    p = root / "tools" / "page_registry.json"
+    if not p.is_file():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001
+        raise SystemExit(f"등재부를 읽을 수 없다 — {p}: {e} (게이트가 조용히 꺼지지 않게 오류로 낸다)")
+
+
+def check_population(pop: dict[str, set[str]], registry: dict) -> list[str]:
+    """모집단 정합. 네 방향의 대칭차를 전부 본다 — 한 방향만 보면 반대편이 샌다."""
+    errors: list[str] = []
+    for d in sorted(pop["A"] - pop["C"]):
+        errors.append(f"공개되는데 계약 밖 — {d}/index.html 이 발행되지만 _meta.txt 가 없다")
+    for d in sorted(pop["C"] - pop["A"]):
+        errors.append(f"_meta.txt 만 있고 index.html 이 없다 — {d}")
+    for d in sorted(pop["B"] - pop["A"]):
+        errors.append(f"목록이 링크하는데 페이지가 없다 — {d}")
+    for d in sorted(pop["A"] - pop["B"]):
+        errors.append(f"고아 발행 — {d} (공개되지만 목록에서 링크되지 않는다)")
+    for f in sorted(pop["S"] - set(registry)):
+        errors.append(f"등재부 밖 HTML — {f} (tools/page_registry.json 에 경로·사유·날짜를 등재하라)")
+    return errors
+
+
+def discover_cases(root: Path = ROOT) -> list[str]:
+    """계약을 갖춘 게시물(= A ∩ C). 계약 밖은 check_population 이 RED 로 낸다."""
+    pop = discover(root)
+    return sorted(pop["A"] & pop["C"])
 
 
 FORBIDDEN_PUBLIC = (
@@ -143,18 +212,18 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:  # noqa: BLE001
         pass
-    cases = discover_cases()
+    # ★모집단 먼저. 어떤 필드를 검사하느냐보다 **무엇을 검사 대상으로 세느냐**가 먼저다 —
+    #   2026-08-18에 공개 페이지 2개가 모집단 밖이라 모든 검사를 통째로 우회했다.
+    pop = discover()
+    errors: list[str] = check_population(pop, load_registry())
+    cases = sorted(pop["A"] & pop["C"])
     if not cases:
         # 표본 0건은 통과가 아니다 — 검사기가 아무것도 안 본 것이다.
         print("게시물을 하나도 발견하지 못했습니다 — 검사 대상 0건은 통과로 세지 않습니다")
         return 1
-    errors: list[str] = []
     for case in cases:
         errors.extend(check_case(case))
     root_html = (ROOT / "index.html").read_text(encoding="utf-8")
-    for case in cases:
-        if f'href="{case}/"' not in root_html:
-            errors.append(f"목록 링크 없음 — {case}")
 
     # ★목록 표지는 썸네일이어야 한다(대표 지적 2026-08-17).
     #   글 안에는 썸네일을 넣고 목록은 안 고쳐, 표지에 카드1(사건요약)이 뜨는 사고가 났다.
