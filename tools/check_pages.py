@@ -195,6 +195,9 @@ def _strip_approved_devnote(html: str) -> str:
 _DATE_PATS = (
     re.compile(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})"),
     re.compile(r"(20\d{2})년\s*(\d{1,2})월\s*(\d{1,2})일"),
+    #: 🔴2026-08-26 코덱스 반례 — 내가 실제로 저지른 위반은 "4차 27/1/4" 형태였고
+    #  완전 연도만 보는 위 둘이 **그것을 통과시켰다**. 회차표는 연도를 줄여 쓴다.
+    re.compile(r"(\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})"),
 )
 
 
@@ -249,7 +252,7 @@ def check_next_round_leak(case: str, meta: list[str], public: str) -> list[str]:
         return ["%s: _meta.txt 3번째 줄에서 매각기일을 못 읽었다 — A-15를 검사할 수 없다" % case]
     this_round = max(sale)
 
-    body = re.sub(r"<(style|script)[^>]*>.*?</>", " ", public, flags=re.S | re.I)
+    body = re.sub(r"<(style|script)[^>]*>.*?</\1>", " ", public, flags=re.S | re.I)
     body = re.sub(r"<!--.*?-->", " ", body, flags=re.S)
     text = re.sub(r"<[^>]+>", " ", body)
 
@@ -259,6 +262,10 @@ def check_next_round_leak(case: str, meta: list[str], public: str) -> list[str]:
             try:
                 d = tuple(int(g) for g in m.groups())
             except ValueError:
+                continue
+            if d[0] < 100:                      # 축약 연도 27 → 2027
+                d = (2000 + d[0], d[1], d[2])
+            if not (1 <= d[1] <= 12 and 1 <= d[2] <= 31):
                 continue
             if d <= this_round:
                 continue
