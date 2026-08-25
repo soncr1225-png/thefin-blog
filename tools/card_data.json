@@ -284,6 +284,81 @@
         "source_ref": "게시 현황표 + 옥션원 예상배당(ca_analy 2026-08-17 수집) + bid_calc/policy",
         "baedang": "_out/baedang_0817/2026-3414.json"
       }
+    },
+    "2025-51365": {
+      "cards": {
+        "summary": {
+          "title": "사건 요약",
+          "rows": [
+            {
+              "label": "감정가",
+              "value": "13억 6,000만 원",
+              "source_ref": "옥션원 ca_view"
+            },
+            {
+              "label": "최저가 (1회차)",
+              "value": "13억 6,000만 원",
+              "highlight": true,
+              "source_ref": "옥션원 ca_view"
+            },
+            {
+              "label": "입찰보증금",
+              "value": "1억 3,600만 원",
+              "source_ref": "최저가의 10%"
+            },
+            {
+              "label": "매각기일",
+              "value": "2026. 8. 31",
+              "source_ref": "옥션원 기일내역"
+            }
+          ],
+          "note": "서울동부지방법원 2025타경51365",
+          "source_refs": [
+            "옥션원 ca_view"
+          ]
+        },
+        "rights": {
+          "title": "권리 요약",
+          "rows": [
+            {
+              "label": "말소기준권리",
+              "value": "2021.11.17 근저당",
+              "source_ref": "옥션원 감정메타"
+            },
+            {
+              "label": "인수할 등기 채무",
+              "value": "없음",
+              "source_ref": "옥션원 예상배당"
+            },
+            {
+              "label": "임차인 대항력",
+              "value": "있음 (2015.12.23 전입)",
+              "highlight": true,
+              "source_ref": "매각물건명세서"
+            },
+            {
+              "label": "매수인 인수금액",
+              "value": "0원 · 배당으로 전액 변제",
+              "source_ref": "옥션원 예상배당"
+            }
+          ],
+          "note": "등기부등본 · 매각물건명세서 · 현황조사서",
+          "source_refs": [
+            "옥션원 ca_view"
+          ]
+        }
+      },
+      "omitted": {
+        "market_gap": "실거래 미수집 — 네이버 호가만 있어 '감정가와 실거래' 카드를 만들지 않는다"
+      },
+      "persona": "data_analyst",
+      "inputs": {
+        "최저가_원": 1360000000,
+        "전용면적_m2": 107.34,
+        "조정대상지역": true,
+        "source_ref": "옥션원 ca_view/ca_analy · bid_calc.total_acq_rate · regulation.classify",
+        "baedang": "_poc/baedang_2025-51365.json"
+      }
     }
   }
 }

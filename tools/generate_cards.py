@@ -184,9 +184,24 @@ def _derive(case_key: str, case: dict[str, Any]) -> tuple[dict, dict]:
         if bp.is_file():
             bd = json.loads(bp.read_text(encoding="utf-8")).get("예상배당")
 
+    #: 🔴2026-08-26 — 여기서 `from_seed` 를 그대로 돌려주면 **배당을 얻는 대신 취득세를 잃는다.**
+    #  `from_seed` 는 전용면적·조정을 seed(`slide23`·`meta.규제지역`)에서만 찾는데, 백필로 예상배당만
+    #  붙인 사건은 seed 가 비어 있어 `derive_tax` 가 조용히 실패했다(51365 실측: 배당 연결 전 3장 →
+    #  연결 후에도 3장인데 **취득세가 배당으로 바뀐 것**이라 개수만 보면 안 보인다).
+    #  ★`inputs` 는 이 파일이 스스로 "회차마다 바뀌므로 seed 가 아니라 여기가 정본"이라 적어 둔 자리다
+    #  (위 최저가 주석). 같은 이유가 전용면적·조정에도 그대로 걸린다 — **inputs 를 seed 위에 얹는다.**
     if seed or bd:
-        return blog_cards.from_seed(seed, 최저가_원=inp.get("최저가_원"),
-                                    source_ref=ref, 예상배당=bd)
+        out, why = blog_cards.from_seed(seed, 최저가_원=inp.get("최저가_원"),
+                                        source_ref=ref, 예상배당=bd)
+        if "acquisition_tax" not in out and inp.get("전용면적_m2") is not None:
+            try:
+                out["acquisition_tax"] = blog_cards.derive_tax(
+                    inp.get("최저가_원"), inp.get("전용면적_m2"),
+                    inp.get("조정대상지역"), ref)
+                why.pop("acquisition_tax", None)
+            except Exception as e:                              # noqa: BLE001
+                why["acquisition_tax"] = str(e)
+        return out, why
 
     out, why = {}, {}
     try:
@@ -234,7 +249,14 @@ def main() -> int:
         pass
     parser = argparse.ArgumentParser(description="THE FIN 블로그 카드 5종 결정론 생성기")
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
-    parser.add_argument("--case", choices=["2024-68165", "2025-51955", "2026-3414"])
+    #: ★사건 목록을 손으로 적지 않는다(2026-08-26). 손 목록이면 새 사건을 등록해도
+    #  `--case` 가 거부해 "데이터는 있는데 못 만드는" 상태가 된다. 실제로 51365 가 그랬다.
+    #  선택지는 **card_data.json 이 실제로 들고 있는 사건**에서 도출한다.
+    try:
+        _known = sorted(json.loads(DEFAULT_DATA.read_text(encoding="utf-8"))["cases"])
+    except Exception:                                           # noqa: BLE001
+        _known = None
+    parser.add_argument("--case", choices=_known)
     parser.add_argument("--check", action="store_true", help="데이터 계약만 검사")
     args = parser.parse_args()
     data = json.loads(args.data.read_text(encoding="utf-8"))
