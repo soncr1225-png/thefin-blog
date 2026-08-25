@@ -21,7 +21,10 @@
   .small{font-size:12px;color:#8c8c8c;line-height:1.7;margin:-6px 0 18px}
   .red{color:#e02020}
   .tag{font-size:13px;color:#1a73c0;line-height:1.9;margin-top:18px}
-  video{width:100%;display:block;background:#000}
+  /* ★2026-08-26 대표 지시 — 모바일 우선이되 PC 통일성. 우리 영상은 세로(9:16)라
+     `width:100%` 만 두면 PC 본문 693px 에서 높이 1,232px 이 되어 화면을 통째로 먹는다.
+     비율을 고정해 메타데이터 로드 전 높이 튐(기본 150px)도 없앤다. */
+  video{width:100%;max-width:390px;aspect-ratio:9/16;margin:0 auto;display:block;background:#000}
 
   /* ── 네이버 에디터 컴포넌트 미리보기 ─────────────────────────────────────
      아래 두 카드는 우리가 그리는 그림이 아니다. 매니저가 에디터에서
@@ -56,6 +59,17 @@
   .devnote h3{font-size:15px;font-weight:700;margin:0 0 6px;color:#555}
   .devnote p,.devnote li{font-size:13.5px;line-height:1.8;color:#555}
   .devnote ol{padding-left:18px;margin:0 0 14px}
+
+  /* ★뷰 전환 — 매니저가 PC 화면도 보고 발행하도록(대표 지시 2026-08-26) */
+  .viewsw{position:fixed;top:12px;right:12px;z-index:99;display:flex;gap:0;
+    border:1px solid #d5d9df;border-radius:7px;overflow:hidden;background:#fff;
+    box-shadow:0 2px 8px rgba(20,30,50,.14);font-family:inherit}
+  .viewsw button{border:0;background:#fff;color:#5b6577;font-size:12px;font-weight:700;
+    padding:7px 13px;cursor:pointer;font-family:inherit}
+  .viewsw button[aria-pressed="true"]{background:#1E2944;color:#fff}
+  body.pcview .phone{max-width:693px}
+  body.pcview{background:#dfe3e9}
+  @media print{.viewsw{display:none}}
 </style></head><body>
 <div class="phone">
 <div class="w">
@@ -251,4 +265,23 @@
   색 정의는 있으나 타일이 그것을 읽지 않아 지금은 네 계정이 같은 그림을 씁니다.</p>
 </div>
 
+
+<div class="viewsw">
+  <button type="button" id="vwM" aria-pressed="true">모바일</button>
+  <button type="button" id="vwP" aria-pressed="false">PC</button>
+</div>
+<script>
+(function(){
+  var m=document.getElementById('vwM'), p=document.getElementById('vwP');
+  function set(pc){
+    document.body.classList.toggle('pcview', pc);
+    m.setAttribute('aria-pressed', String(!pc));
+    p.setAttribute('aria-pressed', String(pc));
+    try{ localStorage.setItem('thefin_blog_view', pc?'pc':'m'); }catch(e){}
+  }
+  m.addEventListener('click', function(){ set(false); });
+  p.addEventListener('click', function(){ set(true); });
+  try{ if(localStorage.getItem('thefin_blog_view')==='pc') set(true); }catch(e){}
+})();
+</script>
 </body></html>
