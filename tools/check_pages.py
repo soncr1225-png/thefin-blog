@@ -183,6 +183,95 @@ def _strip_approved_devnote(html: str) -> str:
     return html
 
 
+
+# ── A-15 · 다음 차수 매각기일·최저가 금지 (대표 확정 2026-08-15) ────────────────
+#   정본 = docs/블로그_문체정본_더핀.md A-15. 대표 원문:
+#     "다음 매각기일을 보여주는 건 이번 차수 말고 **다음 차수를 노리게 만드는** 형태야."
+#   🔴2026-08-26 실제 위반 — 51365 원고에 1~4차 기일·최저가 표를 실었다. 결론은
+#     "기다리면 손해"였지만 표 자체가 다음 차수를 광고한다. 규칙이 막는 것이 그것이다.
+#   ★판정을 구조에서 도출한다: _meta.txt 3번째 줄이 이번 차수 매각기일이다.
+#     그보다 **뒤인 날짜**는 다음 차수다. 과거 날짜(전입·말소·준공)는 앞이라 안 걸린다.
+#     단지명의 '3차'(문정3차푸르지오) 같은 오탐도 날짜로 잡으므로 생기지 않는다.
+_DATE_PATS = (
+    re.compile(r"(20\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})"),
+    re.compile(r"(20\d{2})년\s*(\d{1,2})월\s*(\d{1,2})일"),
+)
+
+
+def _dates(text: str) -> set[tuple[int, int, int]]:
+    out = set()
+    for pat in _DATE_PATS:
+        for y, m, d in pat.findall(text):
+            try:
+                out.add((int(y), int(m), int(d)))
+            except ValueError:
+                pass
+    return out
+
+
+
+# ── 평형 일치 · 목록 제목 vs 본문 (2026-08-26) ──────────────────────────────
+#   🔴같은 값을 두 곳에서 적으면 갈린다 — 실측 2건:
+#     · 51365 = 내가 **전용평(32.47)** 을 평형이라 썼다. 평형은 **공급면적** 기준이고
+#       옥션원이 목록에 '공급 43평형'이라 직접 적어 준다. 썸네일(43)과 본문(32)이 어긋났다.
+#     · 72192 = _meta.txt 는 40평형, 본문은 49평형. 목록과 글이 갈렸다.
+#   ★두 생산자(_meta.txt 제목 · 본문 제목)가 같은 값을 말하는지만 본다.
+#     둘 다 틀린 경우는 여기서 못 잡는다 — 그건 킷 썸네일(공급평형 정본)과의 대조 몫이다.
+_PY = re.compile(r"(\d{1,3})\s*평형")
+
+
+def check_pyeong_agreement(case: str, meta: list[str], html: str) -> list[str]:
+    m_meta = _PY.search(meta[1] if len(meta) > 1 else "")
+    m_body = re.search(r'class="se-title"[^>]*>([^<]+)', html)
+    if not m_meta or not m_body:
+        return []
+    m_title = _PY.search(m_body.group(1))
+    if not m_title:
+        return []
+    if m_meta.group(1) != m_title.group(1):
+        return ["%s: 평형이 목록과 글에서 다르다 — _meta.txt %s평형 vs 본문 %s평형 "
+                "(평형은 공급면적 기준 · 전용평과 혼동 금지)"
+                % (case, m_meta.group(1), m_title.group(1))]
+    return []
+
+
+def check_next_round_leak(case: str, meta: list[str], public: str) -> list[str]:
+    """이번 차수 매각기일보다 뒤인 날짜가 **회차 문맥에서** 보이면 빨강.
+
+    🔴미래 날짜를 전부 잡으면 안 된다(2026-08-26 실측 오탐 4건):
+      · `<style>` 안의 주석 날짜 — 태그만 지우면 CSS 본문이 남는다 → style/script 통째로 제거
+      · *"구리시는 2027년 12월 31일까지 토지거래허가구역"* — 정당한 법적 사실이지 다음 차수가 아니다
+    그래서 **문맥으로 좁힌다**: 그 날짜 둘레에 `차`(회차) 또는 `최저`가 있을 때만 다음 차수로 본다.
+    영구 빨강은 사람이 게이트를 꺼 버리게 만든다 — 좁히는 것이 게이트를 살리는 길이다.
+    """
+    sale = _dates(meta[2] if len(meta) > 2 else "")
+    if not sale:
+        return ["%s: _meta.txt 3번째 줄에서 매각기일을 못 읽었다 — A-15를 검사할 수 없다" % case]
+    this_round = max(sale)
+
+    body = re.sub(r"<(style|script)[^>]*>.*?</>", " ", public, flags=re.S | re.I)
+    body = re.sub(r"<!--.*?-->", " ", body, flags=re.S)
+    text = re.sub(r"<[^>]+>", " ", body)
+
+    hits = []
+    for pat in _DATE_PATS:
+        for m in pat.finditer(text):
+            try:
+                d = tuple(int(g) for g in m.groups())
+            except ValueError:
+                continue
+            if d <= this_round:
+                continue
+            around = text[max(0, m.start() - 60):m.end() + 60]
+            if "차" in around or "최저" in around:
+                hits.append((d, re.sub(r"\s+", " ", around.strip())[:70]))
+    if not hits:
+        return []
+    d, ctx = sorted(hits)[0]
+    return ["%s: 다음 차수 기일이 본문에 있다 — %04d.%02d.%02d (이번 차수 %04d.%02d.%02d) "
+            "· 문체 정본 A-15(대표 확정 2026-08-15) · 근처: %s"
+            % (case, *d, *this_round, ctx)]
+
 def check_case(case: str) -> list[str]:
     errors: list[str] = []
     folder = ROOT / case
@@ -223,6 +312,8 @@ def check_case(case: str) -> list[str]:
     for phrase in FORBIDDEN_PUBLIC:
         if phrase in public:
             errors.append(f"{case}: 공개 본문 금지 문구 — {phrase}")
+    errors += check_next_round_leak(case, meta, public)
+    errors += check_pyeong_agreement(case, meta, html)
     for src in re.findall(r'<img\s+[^>]*src="([^"]+)"', html):
         if src.startswith(("http://", "https://", "data:")):
             errors.append(f"{case}: 외부/인라인 이미지 금지 — {src}")
