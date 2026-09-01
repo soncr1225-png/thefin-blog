@@ -7,6 +7,11 @@ function publicText(html) {
   body = body.replace(/<style[\s\S]*?<\/style>/gi, '')       // CSS 주석이 본문으로 새던 자리
              .replace(/<script[\s\S]*?<\/script>/gi, '')
              .replace(/<!--[\s\S]*?-->/g, '');
+  // 2026-09-01 — 매니저 지시문은 공개 본문이 아니다. `[매니저 · …]` 블록은 에디터에서
+  //   일정·장소·동영상을 넣으라는 안내이고 발행 시 지워진다. 본문으로 세면 그 안의
+  //   단지명이 키워드 반복(STUFF)으로 잡힌다(실측: 단지명 11회 중 2회가 안내 블록).
+  body = body.replace(/<p[^>]*data-sec="manager\.[^"]*"[^>]*>[\s\S]*?<\/p>/g, '')
+             .replace(/\[매니저[^\]]*\][^<\n]*/g, '');
   return body
     .replace(/<h([1-4])[^>]*>/g, '\n■ ')                     // 소제목 마커 — 검사기가 이걸 본다
     .replace(/<li[^>]*>/g, '\n· ')
