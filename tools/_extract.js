@@ -16,8 +16,12 @@ function publicText(html) {
 }
 function meta(html) {
   var body = html.split('<hr class="cut">')[0];
+  var alts = [];                                             // alt 길이 검사용(가이드 A6)
+  var re = /<img[^>]*\salt="([^"]*)"/g, m;
+  while ((m = re.exec(body)) !== null) alts.push(m[1]);
   return { title: (body.match(/<h1>([^<]*)/) || ['', ''])[1],
            imageCount: (body.match(/<img /g) || []).length,
+           alts: alts,
            externalCaptureCount: 0 };
 }
 module.exports = { publicText: publicText, meta: meta };
